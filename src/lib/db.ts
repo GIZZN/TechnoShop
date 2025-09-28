@@ -33,27 +33,9 @@ if (!POSTGRES_PORT) {
   throw new Error('POSTGRES_PORT (или DB_PORT) не задан в переменных окружения');
 }
 
-// Определяем настройки SSL
+// SSL отключен для всех подключений
 const shouldUseSSL = () => {
-  // Если явно указано отключить SSL
-  if (process.env.POSTGRES_SSL === 'false') {
-    return false;
-  }
-  
-  // Если явно указано использовать SSL
-  if (process.env.POSTGRES_SSL === 'true') {
-    return { rejectUnauthorized: false };
-  }
-  
-  // Автоматическое определение: используем SSL для внешних хостов
-  const isLocalhost = POSTGRES_HOST === 'localhost' || POSTGRES_HOST === '127.0.0.1' || POSTGRES_HOST === '::1';
-  
-  if (isLocalhost) {
-    return false;
-  }
-  
-  // Для удаленных хостов всегда используем SSL
-  return { rejectUnauthorized: false };
+  return false;
 };
 
 // Конфигурация подключения к PostgreSQL
