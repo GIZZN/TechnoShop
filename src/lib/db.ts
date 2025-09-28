@@ -33,9 +33,17 @@ if (!POSTGRES_PORT) {
   throw new Error('POSTGRES_PORT (или DB_PORT) не задан в переменных окружения');
 }
 
-// SSL отключен для всех подключений
+// Настройки SSL для работы с существующим pg_hba.conf
 const shouldUseSSL = () => {
-  return false;
+  // Для удаленных хостов используем SSL с существующим конфигом
+  const isLocalhost = POSTGRES_HOST === 'localhost' || POSTGRES_HOST === '127.0.0.1' || POSTGRES_HOST === '::1';
+  
+  if (isLocalhost) {
+    return false;
+  }
+  
+  // Для удаленных хостов (как в вашем конфиге) используем SSL
+  return { rejectUnauthorized: false };
 };
 
 // Конфигурация подключения к PostgreSQL
