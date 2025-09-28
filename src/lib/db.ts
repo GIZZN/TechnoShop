@@ -33,6 +33,29 @@ if (!POSTGRES_PORT) {
   throw new Error('POSTGRES_PORT (или DB_PORT) не задан в переменных окружения');
 }
 
+// Определяем настройки SSL
+const shouldUseSSL = () => {
+  // Если явно указано отключить SSL
+  if (process.env.POSTGRES_SSL === 'false') {
+    return false;
+  }
+  
+  // Если явно указано использовать SSL
+  if (process.env.POSTGRES_SSL === 'true') {
+    return { rejectUnauthorized: false };
+  }
+  
+  // Автоматическое определение: используем SSL для внешних хостов
+  const isLocalhost = POSTGRES_HOST === 'localhost' || POSTGRES_HOST === '127.0.0.1' || POSTGRES_HOST === '::1';
+  
+  if (isLocalhost) {
+    return false;
+  }
+  
+  // Для удаленных хостов всегда используем SSL
+  return { rejectUnauthorized: false };
+};
+
 // Конфигурация подключения к PostgreSQL
 const pool = new Pool({
   user: POSTGRES_USER,
@@ -40,7 +63,7 @@ const pool = new Pool({
   database: POSTGRES_DATABASE,
   password: POSTGRES_PASSWORD,
   port: parseInt(POSTGRES_PORT),
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: shouldUseSSL(),
   // Настройки пула соединений
   max: parseInt(process.env.POSTGRES_MAX_CONNECTIONS || '20'),
   idleTimeoutMillis: parseInt(process.env.POSTGRES_IDLE_TIMEOUT || '30000'),
@@ -73,10 +96,17 @@ export async function query(text: string, params?: unknown[]): Promise<unknown> 
       console.error('💡 Проверьте настройки в .env.local:');
       console.error(`   Пользователь: ${POSTGRES_USER}`);
       console.error('   Пароль: ***');
+    } else if (error instanceof Error && 'code' in error && error.code === '28000') {
+      console.error('❌ PostgreSQL SSL/Authentication Error: Проблема с SSL или pg_hba.conf');
+      console.error('💡 Для удаленной БД убедитесь что:');
+      console.error('   1. SSL включен (попробуйте добавить POSTGRES_SSL=true в .env)');
+      console.error('   2. pg_hba.conf разрешает подключения с вашего IP');
+      console.error('   3. База данных поддерживает SSL соединения');
+      console.error(`   Хост: ${POSTGRES_HOST}, SSL: ${JSON.stringify(shouldUseSSL())}`);
     } else if (error instanceof Error && 'code' in error && error.code === 'ECONNREFUSED') {
       console.error('❌ PostgreSQL Connection Refused: PostgreSQL не запущен');
       console.error(`💡 Проверьте что PostgreSQL работает на ${POSTGRES_HOST}:${POSTGRES_PORT}`);
-    } else if (error instanceof Error && 'code' in error && error .code === '3D000') {
+    } else if (error instanceof Error && 'code' in error && error.code === '3D000') {
       console.error('❌ Database does not exist: База данных не найдена');
       console.error(`💡 Создайте базу данных: CREATE DATABASE ${POSTGRES_DATABASE};`);
     }
